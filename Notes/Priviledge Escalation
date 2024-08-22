@@ -1,0 +1,82 @@
+Often times when we first get onto a compromised system, we won't have admin access right away, so we need to gain that.
+
+We need to find an internal or local vulnerability to get root user on Linux, or administrator/SYSTEM on Windows
+
+Common ways to do so:
+
+
+- PrivEsc Checklists:
+-   Loads of checklists of commands to run to find potential vulnerabilities we can exploit to achieve a higher level. 
+    - Hacktricks: https://book.hacktricks.xyz/ ,  great resource for all things checklist and methodology of what to do.
+
+- Enumeration Scripts:
+    - Many of these commands can be run automatically in scripts that will find interesting things:
+
+    - Common linux enumeration scripts: https://github.com/rebootuser/LinEnum , https://github.com/rebootuser/LinEnum
+    - Common Windows enumeration scripts: https://github.com/411Hall/JAWS , https://github.com/GhostPack/Seatbelt
+
+    - Another tool you might use for server enumeration is https://github.com/peass-ng/PEASS-ng , as its well maintained and includes scripts for Linux and Windows
+
+
+    *NOTE* These scripts run tons of commonly used commands for identifiying vulnerabilities and create lots of noise that may trigger AV's or security monitoring alerts.
+    Sometimes it may be better to manually enumerate to avoid noise.
+
+    EX: ./linpeas .sh
+
+    - Some vunerabilities to look for from these scripts:
+        - Kernel Exploits: if you ever find an old operating system, start looking for kernel vulnerabilities. Suppose it's not being properly patched and updated, then it will probably be vulnerable to specific kernel exploits.
+
+           - For example, if one of that linpeas script showed Linux version 3.9.0-73-generic , we could google that or searchsploit it and find CVE-2016-5195 or DirtyCow, download that exploit, then run it on the server to gain root access.
+
+            - It's worth noting that Kernel level exploits are particularly dangerous for the system, so care should be taken to not just hit kernel level exploits if you don't want to introduce instability.
+
+        - Vulnerable Software:
+            - We can use dpkg -l command on Linux or look at C:\Program Files in Windows to see what software is instaled, and if there are any public exploits for any software, especially old ones.
+
+
+- User Priviledges:
+    - Another thing to look for is what user permissions we currently have connected to the remote system. 
+    - Common ways to exploit certain user priviledges: 
+        1) Sudo
+        2) SUID
+        3) Windows Token Privileges
+
+    - Sudo:
+        - Sudo on linux allows a user to execute commands as a different user, and usually lets lower priviledged users execute as if they were root.
+        - check sudo perms with sudo -l
+        - can use "sudo su -" to switch users.
+        - sudo -l lists what can be executed with sudo
+        - We could potentially swap to a no password user with sudo -u [user] [copmmand]
+
+        - Once we find a particular app we can run with sudo, we can look for ways to exploit it to get a root user shell.
+        - Linux apps that can be exploited with sudo: https://gtfobins.github.io/
+        - Windows apps that can be exploited with sudo: https://lolbas-project.github.io/#
+
+
+- Scheduled Tasks:
+    - In both Windows and Linux, certain things can be scheduled for specific intervals to carry out a task, say anti virus scans or backup scripts every 30 minutes. 
+    - 1) Add new scheduled tasks/cron jobs
+    - 2) Trick them to execute malicious software
+
+    - If we have the ability to write to cron job directories, we can write a bash script with a reverse shell command, and then give us a reverse shell when executed
+    1) /etc/crontab
+    2) /etc/cron.d
+    3) /var/spool/cron/crontabs/root
+
+
+- Exposed Credentials: 
+    - Next we can look for exposed credentials in config files, log files, or user history files. Enumeration scripts above usually hunt those down and use them.
+
+- SSH Keys:
+    - If we have .ssh directory read access, we can find their private keys in /home/user/.ssh/id_rsa or /root/.ssh/id_rsa and use it to log into the server. 
+    - You can then copy it to our machine and run it:
+        - vim id_rsa
+        - chmod 600 id_rsa
+        - ssh root@10.10.10.10 -i id_rsa
+
+    - If we have write access instead, we can put our public key in the user's ssh directory at /home/user/.ssh/authorized_keys
+    - This is usally used to gain ssh access after gaining a shell as that user, as current SSH configs won't allow keys written by other users, you need to BE that user.
+    - Create new key: ssh-keygen -f key
+    - This creates a key file, and a key.pub to put on the remote machine
+    - echo "ssh-rsa AAAAB...SNIP...M= user@parrot" >> /root/.ssh/authorized_keys
+    - Now you can access the ssh servers

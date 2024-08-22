@@ -1,0 +1,4 @@
+We can use cURL to retrieve server header information from the command line. cURL is another essential addition to our penetration testing toolkit, and familiarity with its many options is encouraged.
+
+
+Example: curl -IL https://www.inlanefreight.com

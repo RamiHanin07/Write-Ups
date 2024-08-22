@@ -1,0 +1,6 @@
+We can extract the version of web servers, supporting frameworks, and applications using the command-line tool whatweb. This information can help us pinpoint the technologies in use and begin to search for potential vulnerabilities.
+
+  
+Example: whatweb 10.10.10.121
+
+Example: whatweb --no-errors 10.10.10.0/24

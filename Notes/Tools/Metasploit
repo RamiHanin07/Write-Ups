@@ -1,0 +1,41 @@
+Pentesting tool with many built in exploits and helps you use them.
+
+Also does a bunch of other shit:
+Running reconnaissance scripts to enumerate remote hosts and compromised targets
+
+Verification scripts to test the existence of a vulnerability without actually compromising the target
+
+Meterpreter, which is a great tool to connect to shells and run commands on the compromised targets
+
+Many post-exploitation and pivoting tools
+
+
+
+Open: msfconsole
+
+
+can search for a particular exploit by using:
+
+"search [exploit]"
+
+
+copy the result and then you can USE the exploit with:
+
+"use [path you found above]"
+
+before you can run it, you need to configure: 
+
+"show options" and fill in al the "required" options.
+    - RHOSTS: IP of target (single IP, multiple IPs, or a list of IPs) - "set RHOSTS [ip]"
+    - LHOSTS: IP of attacker, tun0 interface - "set LHOSTS tun0"
+
+
+Before you hit the server, you can check to see if it's vulnerable:
+
+"exploit([path found above]) > check"
+
+noteverything will be "checkable", but worth trying.
+
+Finally, you can run exploit with:
+
+"exploit([path found above]) > exploit"

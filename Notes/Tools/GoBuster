@@ -1,0 +1,7 @@
+Sometimes a web service will have hidden files or directories on their web server that GoBuster can sometimes find.
+
+
+GoBuster is a versatile tool that allows for performing DNS, vhost, and directory brute-forcing. The tool has additional functionality, such as enumeration of public AWS S3 buckets
+
+
+Example: gobuster dir -u http://10.10.10.121/ -w /usr/share/dirb/wordlists/common.txt

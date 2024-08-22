@@ -1,0 +1,34 @@
+Commands:
+
+
+"Nmap [ip]" - gives list of in use ports that are within the common 1-1000 port range.
+
+Optional Commands:
+
+-sC: Do a deeper scan
+-sV: Get version numbers
+-p-: Scan ALL Ports
+
+Example: "nmap -sV -sC -p- [ip]"
+
+
+Banner Grabbing:
+nmap -sV --script=banner <target>
+
+Example: nmap -sV --script=banner -p21 10.10.10.0/24
+
+
+Server Message Block:
+
+Can be used against Windows machines to potentially gain access to confidential and important information such as credentials.
+
+ETERNALBLUE EXPLOIT FOR SMB VERSION 1
+
+Example: nmap --script smb-os-discovery.nse -p445 10.10.10.40
+
+Version:
+
+Gets version of host, lets you deduce OS
+
+nmap -A -p445 10.129.42.253
+

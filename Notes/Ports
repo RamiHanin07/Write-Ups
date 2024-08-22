@@ -1,0 +1,22 @@
+20/21 (TCP)	FTP
+22 (TCP)	SSH -> POSSIBLY Linux, but also could be configured on a Windows machine, just less likely
+23 (TCP)	Telnet
+25 (TCP)	SMTP
+80 (TCP)	HTTP
+161 (TCP/UDP)	SNMP
+389 (TCP/UDP)	LDAP
+443 (TCP)	SSL/TLS (HTTPS)
+445 (TCP)	SMB
+3389 (TCP)	RDP -> Good idea that the computer is WINDOWS
+
+
+
+TCP: Handshake, connection is required
+UDP: Handshake not required, data can be lost if host isn't properly connected but the data is still sent.
+
+
+https://www.stationx.net/common-ports-cheat-sheet/
+
+https://packetlife.net/media/library/23/common-ports.pdf
+
+https://nullsec.us/top-1-000-tcp-and-udp-ports-nmap-default/
