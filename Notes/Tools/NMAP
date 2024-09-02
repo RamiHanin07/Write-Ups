@@ -32,3 +32,5 @@ Gets version of host, lets you deduce OS
 
 nmap -A -p445 10.129.42.253
 
+
+

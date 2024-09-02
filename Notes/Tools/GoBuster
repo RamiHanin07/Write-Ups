@@ -5,3 +5,5 @@ GoBuster is a versatile tool that allows for performing DNS, vhost, and director
 
 
 Example: gobuster dir -u http://10.10.10.121/ -w /usr/share/dirb/wordlists/common.txt
+
+gobuster dir -u [website] -x php--wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt

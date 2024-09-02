@@ -1,0 +1,5 @@
+Used for connecting to Redis databases
+
+redis-cli -h [ip]
+
+https://redis.io/docs/latest/commands/
